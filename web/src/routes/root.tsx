@@ -10,10 +10,12 @@ export const rootLoader = () => loadCatalog();
 // catalog.json changes only with a new build, so no navigation reloads it.
 export const keepCatalog = () => false;
 
-// Scroll positions are kept per URL. By history entry they would collide: every
-// page loaded afresh in a tab is the entry "default", so opening a link to a
-// variant could restore another page's position instead of landing on it.
-const byUrl = (l: Location) => l.pathname + l.search + l.hash;
+// Scroll positions are kept per page and fragment. By history entry they would
+// collide: every page loaded afresh in a tab is the entry "default", so opening
+// a link to a variant could restore another page's position instead of landing
+// on it. Not by query: the lists keep their filters there without telling the
+// router (list-page.tsx).
+const byUrl = (l: Location) => l.pathname + l.hash;
 
 export function Root() {
   return (

@@ -1,14 +1,15 @@
 // Pieces every page shows a model or variant with.
 import { Fragment, type ReactElement, type ReactNode } from "react";
+import { Link } from "react-router";
 import type { Model, Variant } from "@/types";
-import { encodePath, reportLinks, REPORT_LANG, UPLIFT_HELP, variantBest } from "@/lib/catalog";
+import { anchorOf, encodePath, modelPath, reportLinks, REPORT_LANG, UPLIFT_HELP, variantBest } from "@/lib/catalog";
 import { computeSummary, type Facet } from "@/lib/facets";
 import { gpuGroup, gpuHue, tagHue } from "@/lib/hues";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { NativeSelectOption } from "@/components/ui/native-select";
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { icons } from "./icons";
 
@@ -54,29 +55,18 @@ export function VariantBadges({ v }: { v: Variant }) {
   );
 }
 
-const variantId = "font-mono text-[0.84rem] wrap-anywhere mr-[0.15rem]";
-
-// id and badges on one line. The id links to the variant's source, pinned to
-// a commit, when there is one.
-export function VariantLine({ v, className, idClass }: { v: Variant; className: string; idClass?: string }) {
+// id and badges on one line. The id opens the variant on its model page,
+// where its configuration and its source on GitHub are.
+export function VariantLine({ m, v, className, idClass }: { m: Model; v: Variant; className: string; idClass?: string }) {
   return (
     <div className={className}>
-      {v.source ? (
-        <a
-          className={cn(
-            variantId,
-            "text-inherit underline decoration-input decoration-dotted underline-offset-[3px] hover:text-primary hover:decoration-current",
-            idClass
-          )}
-          href={v.source}
-          {...NEW_TAB}
-          title={`Source on GitHub, pinned to commit ${v.source.split("/blob/")[1].slice(0, 7)}`}
-        >
-          {v.id}
-        </a>
-      ) : (
-        <span className={cn(variantId, idClass)}>{v.id}</span>
-      )}
+      <Link
+        className={cn("mr-[0.15rem] font-mono text-[0.84rem] wrap-anywhere text-inherit hover:text-primary", idClass)}
+        to={{ pathname: modelPath(m), hash: anchorOf(m.latest, v.id) }}
+        title={v.description ? `${v.id}: ${v.description}` : v.id}
+      >
+        {v.id}
+      </Link>
       <VariantBadges v={v} />
     </div>
   );
@@ -201,21 +191,45 @@ export function GpuToggles({
   );
 }
 
-// A select's options: everything, then each value with its count.
-export function Options({ values, all }: { values: string[]; all: string }) {
+// Radix keeps "" for no value at all, so "everything" travels as this.
+const ALL = "*";
+
+// A toolbar select over a filter's values, each with how many entries have it;
+// "" is everything.
+export function FilterSelect({
+  label,
+  all,
+  values,
+  value,
+  onChange,
+  className,
+}: {
+  label: string;
+  all: string;
+  values: string[];
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
   const counts: Record<string, number> = {};
   for (const v of values) counts[v] = (counts[v] || 0) + 1;
   return (
-    <>
-      <NativeSelectOption value="">{all}</NativeSelectOption>
-      {Object.keys(counts)
-        .sort((a, b) => a.localeCompare(b))
-        .map((v) => (
-          <NativeSelectOption key={v} value={v}>
-            {`${v} (${counts[v]})`}
-          </NativeSelectOption>
-        ))}
-    </>
+    <Select value={value || ALL} onValueChange={(v) => onChange(v === ALL ? "" : v)}>
+      <SelectTrigger aria-label={label} className={className}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL}>{all}</SelectItem>
+        <SelectSeparator />
+        {Object.keys(counts)
+          .sort((a, b) => a.localeCompare(b))
+          .map((v) => (
+            <SelectItem key={v} value={v} hint={counts[v]}>
+              {v}
+            </SelectItem>
+          ))}
+      </SelectContent>
+    </Select>
   );
 }
 

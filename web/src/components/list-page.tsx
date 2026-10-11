@@ -11,11 +11,11 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { GpuToggles, Options, Summary } from "./catalog";
+import { FilterSelect, GpuToggles, Summary } from "./catalog";
 import { icons } from "./icons";
 import { ListTabs, SiteFooter, SiteHeader } from "./site";
 
@@ -46,8 +46,10 @@ export interface ListConfig {
   // The card grid's narrowest column.
   cardWidth: number;
   head: (th: SortHead) => ReactNode;
-  card: (i: number) => ReactElement;
-  row: (i: number) => ReactElement;
+  // Entry i, hidden when the filters leave it out. Every entry stays
+  // rendered, so a filter only flips the ones it changes.
+  card: (i: number, hidden: boolean) => ReactElement;
+  row: (i: number, hidden: boolean) => ReactElement;
 }
 
 function matches(m: Facet, st: State): boolean {
@@ -73,13 +75,13 @@ function queryOf(st: State): string {
   return params.toString();
 }
 
-const field = "max-[560px]:flex max-[560px]:flex-[1_1_calc(50%-0.25rem)]";
-const fieldSelect = "max-[560px]:w-full";
+// On phones, two selects share a row.
+const field = "max-[560px]:w-full max-[560px]:flex-[1_1_calc(50%-0.25rem)]";
 
 export function ListPage({ catalog, cfg }: { catalog: Catalog; cfg: ListConfig }) {
   const { facets, noun } = cfg;
   const html = document.documentElement;
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const options = useMemo(
     () => ({
       family: facets.map((f) => f.family).filter((f): f is string => !!f),
@@ -111,11 +113,16 @@ export function ListPage({ catalog, cfg }: { catalog: Catalog; cfg: ListConfig }
   });
   const set = (patch: Partial<State>) => setSt((s) => ({ ...s, ...patch }));
 
+  // The filters are kept in the URL by replacing it in place, not by a router
+  // navigation: one would re-render the whole route on every keystroke. The
+  // history entry keeps the router's state, so Back and Forward still find
+  // the filters in the URL.
   const qs = queryOf(st);
   useEffect(() => {
     html.dataset.view = st.view;
-    if (qs !== params.toString()) setParams(qs, { replace: true, preventScrollReset: true });
-  }, [qs, st.view]); // eslint-disable-line react-hooks/exhaustive-deps
+    const url = location.pathname + (qs ? `?${qs}` : "") + location.hash;
+    if (url !== location.pathname + location.search + location.hash) history.replaceState(history.state, "", url);
+  }, [qs, st.view, html]);
 
   // "/" focuses the search; Escape clears it.
   const search = useRef<HTMLInputElement>(null);
@@ -135,8 +142,13 @@ export function ListPage({ catalog, cfg }: { catalog: Catalog; cfg: ListConfig }
   }, []);
 
   const sorter = sorters[st.sort] || sorters[DEFAULTS.sort];
-  const order = facets.map((_, i) => i).sort((a, b) => sorter(facets[a], facets[b]));
+  const order = useMemo(() => facets.map((_, i) => i).sort((a, b) => sorter(facets[a], facets[b])), [facets, sorter]);
   const shown = order.filter((i) => matches(facets[i], st));
+  const visible = new Set(shown);
+  // A view, once shown, stays rendered and is only hidden while the other is
+  // on, so switching back is immediate.
+  const kept = useRef(new Set<View>());
+  kept.current.add(st.view);
 
   // Tag, family and GPU chips set their filter; table headers set the sort.
   const onResultsClick = (e: MouseEvent) => {
@@ -173,12 +185,14 @@ export function ListPage({ catalog, cfg }: { catalog: Catalog; cfg: ListConfig }
 
   const variants = catalog.models.reduce((n, m) => n + latestVersion(m).variants.length, 0);
   const select = (name: "family" | "engine" | "tag", all: string) => (
-    <label className={field}>
-      <span className="sr-only">{name[0].toUpperCase() + name.slice(1)}</span>
-      <NativeSelect name={name} value={st[name]} onChange={(e) => set({ [name]: e.target.value })} className={fieldSelect}>
-        <Options values={options[name]} all={all} />
-      </NativeSelect>
-    </label>
+    <FilterSelect
+      label={name[0].toUpperCase() + name.slice(1)}
+      all={all}
+      values={options[name]}
+      value={st[name]}
+      onChange={(value) => set({ [name]: value })}
+      className={field}
+    />
   );
 
   return (
@@ -193,28 +207,28 @@ export function ListPage({ catalog, cfg }: { catalog: Catalog; cfg: ListConfig }
           onSubmit={(e) => e.preventDefault()}
           className="sticky top-0 z-[5] mb-2 grid gap-[0.6rem] bg-[color-mix(in_srgb,var(--background)_90%,transparent)] py-3 backdrop-blur-[10px]"
         >
+          {/* The search has a line of its own; "/" anywhere goes to it. */}
+          <label className="relative block">
+            <span className="sr-only">Search {noun}</span>
+            <Input
+              type="search"
+              name="q"
+              placeholder={cfg.search}
+              autoComplete="off"
+              ref={search}
+              value={st.q}
+              onChange={(e) => set({ q: e.target.value })}
+              className="peer"
+            />
+            <Kbd aria-hidden="true" className="absolute top-1/2 right-[0.6rem] -translate-y-1/2 peer-focus:hidden peer-[:not(:placeholder-shown)]:hidden">
+              /
+            </Kbd>
+          </label>
+          {/* What to show on the left; how many, in what order and how, on the right. */}
           <div className="flex flex-wrap items-center gap-2">
-            <label className="relative flex-[1_1_280px]">
-              <span className="sr-only">Search {noun}</span>
-              <Input
-                type="search"
-                name="q"
-                placeholder={cfg.search}
-                autoComplete="off"
-                ref={search}
-                value={st.q}
-                onChange={(e) => set({ q: e.target.value })}
-                className="peer"
-              />
-              <Kbd aria-hidden="true" className="absolute top-1/2 right-[0.6rem] -translate-y-1/2 peer-focus:hidden peer-[:not(:placeholder-shown)]:hidden">
-                /
-              </Kbd>
-            </label>
             {select("family", "All families")}
             {select("engine", "All engines")}
             {select("tag", "All tags")}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
             {hasDeprecated && (
               <Toggle className="hue-red" pressed={st.hidedep} onPressedChange={(on) => set({ hidedep: on })}>
                 Hide deprecated
@@ -224,16 +238,18 @@ export function ListPage({ catalog, cfg }: { catalog: Catalog; cfg: ListConfig }
             <p aria-live="polite" className="mx-1 text-[0.85rem] text-muted-foreground tabular-nums">
               {shown.length === facets.length ? `${facets.length} ${noun}` : `${shown.length} of ${facets.length} ${noun}`}
             </p>
-            <label className={field}>
-              <span className="sr-only">Sort by</span>
-              <NativeSelect name="sort" value={st.sort} onChange={(e) => set({ sort: e.target.value })} className={fieldSelect}>
+            <Select value={st.sort} onValueChange={(sort) => set({ sort })}>
+              <SelectTrigger aria-label="Sort by" className={field}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
                 {cfg.sorts.map(([value, label]) => (
-                  <NativeSelectOption key={value} value={value}>
+                  <SelectItem key={value} value={value}>
                     {label}
-                  </NativeSelectOption>
+                  </SelectItem>
                 ))}
-              </NativeSelect>
-            </label>
+              </SelectContent>
+            </Select>
             <ToggleGroup
               type="single"
               variant="segment"
@@ -275,17 +291,24 @@ export function ListPage({ catalog, cfg }: { catalog: Catalog; cfg: ListConfig }
           </div>
         </form>
         <div onClick={onResultsClick}>
-          {st.view === "cards" ? (
-            <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${cfg.cardWidth}px), 1fr))` }}>
-              {shown.map((i) => cfg.card(i))}
+          {kept.current.has("cards") && (
+            <div
+              hidden={st.view !== "cards"}
+              className="grid gap-4"
+              style={{ gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${cfg.cardWidth}px), 1fr))` }}
+            >
+              {order.map((i) => cfg.card(i, !visible.has(i)))}
             </div>
-          ) : (
-            <Table className="min-w-[820px]">
-              <TableHeader>
-                <TableRow>{cfg.head(th)}</TableRow>
-              </TableHeader>
-              <TableBody>{shown.map((i) => cfg.row(i))}</TableBody>
-            </Table>
+          )}
+          {kept.current.has("table") && (
+            <div hidden={st.view !== "table"}>
+              <Table className="min-w-[820px]">
+                <TableHeader>
+                  <TableRow>{cfg.head(th)}</TableRow>
+                </TableHeader>
+                <TableBody>{order.map((i) => cfg.row(i, !visible.has(i)))}</TableBody>
+              </Table>
+            </div>
           )}
         </div>
         {shown.length === 0 && (

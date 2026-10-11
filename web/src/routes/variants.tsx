@@ -1,10 +1,10 @@
 // The variants list: every model's variants in the version a deploy gets, one
 // entry each, so they compare across models: by GPU, engine, image or
 // improvement.
-import { useEffect } from "react";
+import { memo, useEffect, useMemo } from "react";
 import { Link, useRouteLoaderData } from "react-router";
 import type { Catalog, Model, Variant } from "@/types";
-import { anchorOf, latestVersion, modelPath, orderedVariants, UPLIFT_HELP } from "@/lib/catalog";
+import { latestVersion, modelPath, orderedVariants, UPLIFT_HELP } from "@/lib/catalog";
 import { variantFacetsOf } from "@/lib/facets";
 import { Card } from "@/components/ui/card";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
@@ -19,26 +19,10 @@ import {
   linkItems,
   none,
   tableVariantLine,
-  VariantBadges,
+  VariantLine,
   variantLine,
 } from "@/components/catalog";
 import { ListPage } from "@/components/list-page";
-
-// The id and badges; the id opens the variant on its model page.
-function VariantRef({ m, v, className, idClass }: { m: Model; v: Variant; className: string; idClass: string }) {
-  return (
-    <div className={className}>
-      <Link
-        className={`mr-[0.15rem] font-mono wrap-anywhere text-inherit hover:text-primary ${idClass}`}
-        to={{ pathname: modelPath(m), hash: anchorOf(m.latest, v.id) }}
-        title={v.description ? `${v.id}: ${v.description}` : v.id}
-      >
-        {v.id}
-      </Link>
-      <VariantBadges v={v} />
-    </div>
-  );
-}
 
 // A variant's own perf reports and link.
 function variantLinks(m: Model, v: Variant, kind: "button" | "link", reportLabel: string) {
@@ -54,17 +38,17 @@ const fact = {
   dd: "wrap-anywhere",
 };
 
-function VariantCard({ m, v, scale }: { m: Model; v: Variant; scale: number }) {
+const VariantCard = memo(function VariantCard({ m, v, scale, hidden }: { m: Model; v: Variant; scale: number; hidden: boolean }) {
   const hw = v.hardwareShort ? (
     <span className="font-medium text-foreground tabular-nums" title={v.requiresSummary}>
       <Hardware v={v} />
     </span>
   ) : null;
-  const line = <VariantRef m={m} v={v} className={variantLine} idClass="text-[0.92rem] font-semibold" />;
+  const line = <VariantLine m={m} v={v} className={variantLine} idClass="text-[0.92rem] font-semibold" />;
   const bar = improvementBar(m, v, scale, "h-[1.35rem] shrink-0 grid-cols-[56px_minmax(4.4em,auto)]");
   const links = variantLinks(m, v, "button", "Perf report");
   return (
-    <Card className="gap-[0.45rem] max-[560px]:p-4">
+    <Card hidden={hidden} className="gap-[0.45rem] max-[560px]:p-4">
       <div className="flex flex-wrap items-center gap-x-[0.6rem] gap-y-[0.3rem] text-[0.84rem] text-muted-foreground">
         <Link className="font-semibold text-foreground hover:text-primary" to={modelPath(m)} title={m.name}>
           {m.displayName}
@@ -101,7 +85,7 @@ function VariantCard({ m, v, scale }: { m: Model; v: Variant; scale: number }) {
       {links.length > 0 && <div className="mt-auto flex flex-wrap gap-2 pt-[0.35rem]">{links}</div>}
     </Card>
   );
-}
+});
 
 // Hardware with its GPU names as filter chips. A node count may wrap to a
 // line of its own; the rest stays on one.
@@ -124,11 +108,11 @@ function HardwareCell({ v }: { v: Variant }) {
 
 // The table: the model first, since many models share variant ids
 // (sglang-tp8-h100-baseline); the engine and image under the id.
-function VariantRow({ m, v, scale }: { m: Model; v: Variant; scale: number }) {
+const VariantRow = memo(function VariantRow({ m, v, scale, hidden }: { m: Model; v: Variant; scale: number; hidden: boolean }) {
   const image = imageCode(v);
   const links = variantLinks(m, v, "link", "Report");
   return (
-    <TableRow>
+    <TableRow hidden={hidden}>
       <TableCell className="min-w-[200px]">
         <div className="font-semibold" title={m.name}>
           <Link className="text-inherit hover:text-primary" to={modelPath(m)}>
@@ -143,7 +127,7 @@ function VariantRow({ m, v, scale }: { m: Model; v: Variant; scale: number }) {
         )}
       </TableCell>
       <TableCell>
-        <VariantRef m={m} v={v} className={tableVariantLine} idClass="text-[0.82rem]" />
+        <VariantLine m={m} v={v} className={tableVariantLine} idClass="text-[0.82rem]" />
         {(v.engine || image) && (
           <div className="mt-[0.1rem] text-[0.8rem] text-muted-foreground">
             {v.engine}
@@ -159,17 +143,19 @@ function VariantRow({ m, v, scale }: { m: Model; v: Variant; scale: number }) {
       <TableCell>{links.length ? <div className="grid justify-items-start gap-[0.2rem]">{links}</div> : none}</TableCell>
     </TableRow>
   );
-}
+});
 
 export function VariantsRoute() {
   const catalog = useRouteLoaderData("root") as Catalog;
   useEffect(() => {
     document.title = "Variants · Model Catalog";
   }, []);
-  const entries = catalog.models.flatMap((m) => orderedVariants(m, latestVersion(m).variants).map((v, rank) => ({ m, v, rank })));
-  const facets = entries.map(({ m, v, rank }) => variantFacetsOf(m, v, rank));
-  // Every bar is drawn against the best result on the page.
-  const scale = Math.max(0, ...facets.map((f) => f.uplift || 0)) || 1;
+  const { entries, facets, scale } = useMemo(() => {
+    const entries = catalog.models.flatMap((m) => orderedVariants(m, latestVersion(m).variants).map((v, rank) => ({ m, v, rank })));
+    const facets = entries.map(({ m, v, rank }) => variantFacetsOf(m, v, rank));
+    // Every bar is drawn against the best result on the page.
+    return { entries, facets, scale: Math.max(0, ...facets.map((f) => f.uplift || 0)) || 1 };
+  }, [catalog]);
   return (
     <ListPage
       catalog={catalog}
@@ -196,8 +182,8 @@ export function VariantsRoute() {
             <TableHead>Links</TableHead>
           </>
         ),
-        card: (i) => <VariantCard key={i} m={entries[i].m} v={entries[i].v} scale={scale} />,
-        row: (i) => <VariantRow key={i} m={entries[i].m} v={entries[i].v} scale={scale} />,
+        card: (i, hidden) => <VariantCard key={i} m={entries[i].m} v={entries[i].v} scale={scale} hidden={hidden} />,
+        row: (i, hidden) => <VariantRow key={i} m={entries[i].m} v={entries[i].v} scale={scale} hidden={hidden} />,
       }}
     />
   );

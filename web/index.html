@@ -15,6 +15,8 @@
     if (v === "cards") d.dataset.view = v;
   } catch (e) {}
 </script>
+<!-- What every route renders from: fetched alongside the scripts. -->
+<link rel="preload" href="%BASE_URL%catalog.json" as="fetch" crossorigin>
 </head>
 <body>
 <div id="root"></div>

@@ -64,6 +64,18 @@ export function tuningFor(m: Model, version: string, id: string): Tuning[] {
   return earlier.length ? earlier.filter((t) => t.version === earlier[0].version) : [];
 }
 
+// A result per model (or per its variants list) and argument, computed once:
+// the catalog loads once per visit and its objects never change.
+function perObject<K extends object, A, R>(f: (k: K, a: A) => R): (k: K, a: A) => R {
+  const cache = new WeakMap<K, Map<A, R>>();
+  return (k, a) => {
+    let byArg = cache.get(k);
+    if (!byArg) cache.set(k, (byArg = new Map()));
+    if (!byArg.has(a)) byArg.set(a, f(k, a));
+    return byArg.get(a)!;
+  };
+}
+
 export interface Best {
   name: string | null;
   upliftPct: number;
@@ -75,7 +87,7 @@ export interface Best {
 
 // An optimized variant's best result in the latest version, over its pairs and
 // their workloads; null for any other variant.
-export function variantBest(m: Model, id: string): Best | null {
+export const variantBest = perObject((m: Model, id: string): Best | null => {
   let best: Best | null = null;
   for (const t of tuningFor(m, m.latest, id)) {
     const rows: Array<Workload | { name: null; upliftPct: number | null; upliftLabel: string | null }> = t.workloads.length
@@ -88,12 +100,16 @@ export function variantBest(m: Model, id: string): Best | null {
     }
   }
   return best;
-}
+});
 
 // Optimized variants first, the biggest improvement first, then the rest.
 // Ties go to the default, then file order (sort is stable). Every list and
 // the model page show variants in this one order.
 export function orderedVariants(m: Model, variants: Variant[] = m.versions[0].variants): Variant[] {
+  return ordered(m, variants);
+}
+
+const ordered = perObject((m: Model, variants: Variant[]): Variant[] => {
   const best = new Map(variants.map((v) => [v.id, (v.isOptimized && variantBest(m, v.id)) || null]));
   const gain = (v: Variant) => best.get(v.id)?.upliftPct ?? -Infinity;
   return variants
@@ -104,7 +120,7 @@ export function orderedVariants(m: Model, variants: Variant[] = m.versions[0].va
         (gain(a) === gain(b) ? 0 : gain(b) - gain(a)) ||
         Number(b.default) - Number(a.default)
     );
-}
+});
 
 export interface ReportLink {
   r: Report;
@@ -118,7 +134,7 @@ export interface ReportLink {
 // label alone for one report; for several, the GPUs of the variant each
 // measured, or its file name when those do not tell them apart. A report
 // measured on an earlier version than the latest says which in its tooltip.
-export function reportLinks(m: Model, label: string): ReportLink[] {
+export const reportLinks = perObject((m: Model, label: string): ReportLink[] => {
   const variants = orderedVariants(m);
   const all = m.versions.flatMap((ver) => ver.variants);
   const items = m.reports.map((r) => {
@@ -142,7 +158,7 @@ export function reportLinks(m: Model, label: string): ReportLink[] {
       title: older ? `${r.file}, measured on v${older}` : r.file,
       text: items.length < 2 ? label : distinct ? `${hw} ${label.toLowerCase()}` : r.title,
     }));
-}
+});
 
 // A variant's configuration: its own lines of the published version file,
 // dedented, with its "- " marker gone.

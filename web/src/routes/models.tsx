@@ -1,5 +1,5 @@
 // The models list.
-import { Fragment, useEffect } from "react";
+import { Fragment, memo, useEffect, useMemo } from "react";
 import { Link, useRouteLoaderData } from "react-router";
 import type { Catalog, Model } from "@/types";
 import { idIsDisplayName, modelPath, orderedVariants, UPLIFT_HELP, variantBest } from "@/lib/catalog";
@@ -20,10 +20,10 @@ import {
 } from "@/components/catalog";
 import { ListPage } from "@/components/list-page";
 
-function ModelCard({ m, scale }: { m: Model; scale: number }) {
+const ModelCard = memo(function ModelCard({ m, scale, hidden }: { m: Model; scale: number; hidden: boolean }) {
   const links = linkItems(m, "button", "Perf report");
   return (
-    <Card className="max-[560px]:p-4">
+    <Card hidden={hidden} className="max-[560px]:p-4">
       <h2 className="text-[1.1rem] font-[650] tracking-[-0.01em]">
         <Link className="text-inherit hover:text-primary" to={modelPath(m)} title={m.name}>
           {m.displayName}
@@ -54,7 +54,7 @@ function ModelCard({ m, scale }: { m: Model; scale: number }) {
                 </span>
               ) : null;
               const bar = improvementBar(m, v, scale, "h-[1.35rem] shrink-0 grid-cols-[56px_minmax(4.4em,auto)]");
-              const line = <VariantLine v={v} className={variantLine} />;
+              const line = <VariantLine m={m} v={v} className={variantLine} />;
               return (
                 <li key={v.id} className="px-[0.8rem] py-[0.6rem] [&+&]:border-t [&+&]:border-border">
                   {bar ? (
@@ -81,7 +81,7 @@ function ModelCard({ m, scale }: { m: Model; scale: number }) {
       </div>
     </Card>
   );
-}
+});
 
 const lineRow = "h-[1.45rem] [&+&]:mt-[0.35rem]";
 
@@ -123,10 +123,10 @@ function linksCell(m: Model) {
 }
 
 // Compact: no descriptions (the description is the name's tooltip).
-function ModelRow({ m, scale }: { m: Model; scale: number }) {
+const ModelRow = memo(function ModelRow({ m, scale, hidden }: { m: Model; scale: number; hidden: boolean }) {
   const gpus = [...new Set(m.versions[0].variants.flatMap((v) => v.hardware))];
   return (
-    <TableRow>
+    <TableRow hidden={hidden}>
       <TableCell className="min-w-[200px]">
         <div className="font-semibold" title={m.description ? `${m.name} — ${m.description}` : m.name}>
           <Link className="text-inherit hover:text-primary" to={modelPath(m)}>
@@ -148,14 +148,14 @@ function ModelRow({ m, scale }: { m: Model; scale: number }) {
       <TableCell>{m.family ? <Chip filter="family" value={m.family} /> : none}</TableCell>
       <TableCell>
         {orderedVariants(m).map((v) => (
-          <VariantLine key={v.id} v={v} className={tableVariantLine} idClass="text-[0.82rem]" />
+          <VariantLine key={v.id} m={m} v={v} className={tableVariantLine} idClass="text-[0.82rem]" />
         ))}
       </TableCell>
       <TableCell className="text-right">{improvementCell(m, scale) || none}</TableCell>
       <TableCell>{linksCell(m) || none}</TableCell>
     </TableRow>
   );
-}
+});
 
 export function ModelsRoute() {
   const catalog = useRouteLoaderData("root") as Catalog;
@@ -163,14 +163,20 @@ export function ModelsRoute() {
     document.title = "Model Catalog";
   }, []);
   const models = catalog.models;
-  // Every bar is drawn against the catalog's best result.
-  const scale = Math.max(0, ...models.flatMap((m) => m.versions[0].variants.map((v) => variantBest(m, v.id)?.upliftPct || 0))) || 1;
+  const { facets, scale } = useMemo(
+    () => ({
+      facets: models.map(facetsOf),
+      // Every bar is drawn against the catalog's best result.
+      scale: Math.max(0, ...models.flatMap((m) => m.versions[0].variants.map((v) => variantBest(m, v.id)?.upliftPct || 0))) || 1,
+    }),
+    [models]
+  );
   return (
     <ListPage
       catalog={catalog}
       cfg={{
         noun: "models",
-        facets: models.map(facetsOf),
+        facets,
         search: "Search models, variants, hardware…",
         sorts: [
           ["uplift", "Sort by improvement"],
@@ -188,8 +194,8 @@ export function ModelsRoute() {
             <TableHead>Links</TableHead>
           </>
         ),
-        card: (i) => <ModelCard key={i} m={models[i]} scale={scale} />,
-        row: (i) => <ModelRow key={i} m={models[i]} scale={scale} />,
+        card: (i, hidden) => <ModelCard key={i} m={models[i]} scale={scale} hidden={hidden} />,
+        row: (i, hidden) => <ModelRow key={i} m={models[i]} scale={scale} hidden={hidden} />,
       }}
     />
   );

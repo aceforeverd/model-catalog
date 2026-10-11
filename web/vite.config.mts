@@ -132,6 +132,16 @@ export default defineConfig({
   cacheDir: path.join(repo, "node_modules/.vite"),
   plugins: [react(), tailwindcss(), catalogSite()],
   resolve: { alias: { "@": path.join(web, "src") } },
-  build: { outDir, emptyOutDir: true },
+  build: {
+    outDir,
+    emptyOutDir: true,
+    rolldownOptions: {
+      output: {
+        // Libraries in a chunk of their own: they change far less often than
+        // the app, so browsers keep them across deploys.
+        codeSplitting: { groups: [{ name: (id: string) => (id.includes("/node_modules/") ? "vendor" : null) }] },
+      },
+    },
+  },
   test: { include: ["src/**/*.test.ts"] },
 });
