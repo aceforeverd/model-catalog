@@ -1,15 +1,19 @@
 "use strict";
-// The site's data: catalog.json, which the pages render from, and the catalog
-// itself (index.json and the version files it names), published beside them.
-// The pages are a Vite app in web/; its config serves this in dev and writes
-// it out in a build.
+// What the catalog server serves, built from models/: the catalog itself
+// (index.json and the version files it names, which swiss reads) and
+// catalog.json, which the web app renders from. index.json does not yet carry
+// all the app shows (images, served names, commit-pinned source links); once
+// its schema does, catalog.json goes.
+//
+// server/index.js serves this live; the site build (web/vite.config.mts)
+// writes it out as static files beside the pages.
 
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { parseDocument, LineCounter } = require("yaml");
-const { root, modelsDir, readYaml, modelNames, versionFiles, compareVersions, latestOf, buildIndex, serializeIndex } = require("./catalog");
-const { reportProblem } = require("./report");
+const { root, modelsDir, readYaml, modelNames, versionFiles, compareVersions, latestOf, buildIndex, serializeIndex } = require("../hack/lib/catalog");
+const { reportProblem } = require("../hack/lib/report");
 
 // The GitHub repository the version files live in: the one being built in CI,
 // else package.json's.

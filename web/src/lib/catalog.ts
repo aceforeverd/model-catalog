@@ -33,9 +33,9 @@ export function latestVersion(m: Model): Version {
   return m.versions.find((v) => v.version === m.latest)!;
 }
 
-// Each model's page, relative to the list pages.
-export function modelHref(m: Model): string {
-  return `models/${encodeURIComponent(m.dir)}/index.html`;
+// Each model's page, as the router and the published site name it.
+export function modelPath(m: Model): string {
+  return `/models/${encodeURIComponent(m.dir)}/index.html`;
 }
 
 export const anchorOf = (version: string, id: string) => `v${version}-${id}`;

@@ -33,10 +33,10 @@ catalogs:
     default: true
 ```
 
-To try this checkout instead, serve it locally (needs `npm install` and `python3`):
+To try this checkout instead, serve it locally with the catalog server (needs `npm install`):
 
 ```sh
-./hack/serve.sh                                   # http://127.0.0.1:8000
+npm run serve                                     # http://127.0.0.1:8000
 swiss plan --catalog http://127.0.0.1:8000 --model qwen3.6-35b-a3b   # also needs a site profile
 ```
 
@@ -68,7 +68,7 @@ models/<name>/
    npm run validate:schema
    npm run tools:install && npm run validate:helm -- models/my-model/my-model-1.0.0.yaml
    npm run validate:images -- models/my-model/my-model-1.0.0.yaml
-   npm run dev:site                          # preview the site at http://localhost:5173
+   npm run dev:site                          # preview at http://localhost:5173/model-catalog/
    ```
 
 **A new variant, or a fix to a published one, is a new version file**
@@ -111,38 +111,48 @@ linking it. The images it records must be the two variants' own (registry, repos
 
 | command | does |
 | --- | --- |
-| `npm run validate:schema` | schemas, tuning references, report HTML (pre-commit and CI) |
-| `npm run test:lib` | tests for `hack/lib` |
+| `npm run validate:schema` | schemas, naming and layout, tuning references, report HTML (pre-commit and CI) |
+| `npm test` | every unit test: the catalog library, the Helm validator, the catalog server, and the site's types and tests (`npm run test:web` for the site alone) |
 | `npm run tools:install` | pinned Helm, kubeconform and crane, once |
 | `npm run validate:helm` | render every variant against the charts (`--chart-mode declared` for what a deploy uses) |
 | `npm run validate:images` | (needs `tools:install`, for crane) every image is publicly pullable without a login, by tag and by any pinned `digest`, and every perf report measured its variants' builds<br> a tag that has moved off its pinned digest is a warning; `--match-digest` makes it an error |
 | `npm run validate` | `validate:schema`, `validate:helm` and `validate:images` |
-| `npm run dev:site` | the site at <http://localhost:5173>, live from `models/` |
+| `npm run dev:site` | the site at <http://localhost:5173/model-catalog/>, live from `models/` |
 | `npm run build:site` | the site and `index.json` into `site/` (`PUBLISHED_INDEX=none` offline); `npm run preview:site` serves it |
-| `npm run test:web` / `typecheck:web` | tests and types for the site in `web/` |
-| `npm test` | `hack/validate.sh`: naming and layout checks (needs `yq`) |
-| `./hack/serve.sh` | rebuild `index.json` and serve the tree |
+| `npm run serve` | the catalog server: `index.json`, the version files, reports and `catalog.json`, live from `models/` |
 
 `validate:helm` and `validate:images` check every version file; pass files, or
 `--base REF` for what a branch changes, to narrow them.
 
 Needs Node.js 24.
 
-- **The site** is a Vite + React app in `web/`. Its pages render in the
-  browser from `catalog.json`, which `hack/lib/site.js` builds from `models/`,
-  so they need JavaScript; `index.json` and the version files beside them are
-  the catalog swiss reads.
-- **CI.** `lints` runs on pull requests: `validate:schema`, `test:lib`,
-  `typecheck:web`, `test:web`, `test:helm`, then `validate:helm` against the latest stable charts
+- **Backend and frontend, one GitHub Pages site.** The backend is the catalog
+  server (`server/`): it serves `index.json` and the version files swiss
+  reads, the perf reports, and `catalog.json`, live from `models/`
+  (`npm run serve`). The Pages build writes the same files out statically
+  beside the web app, so one site at `catalog.yaml`'s `site` is both the
+  catalog swiss reads and the pages people browse; `models/<name>/index.html`
+  is a model's page, so no report may take that name. `catalog.json` carries what the index does not yet (images,
+  served names, commit-pinned source links) and goes once the index schema
+  does. The frontend is a single-page React app in `web/` (Vite, React
+  Router, Tailwind and [shadcn/ui](https://ui.shadcn.com) components) that
+  renders from it, so it needs JavaScript. `npm run dev:site` starts both and
+  proxies the page's data requests to the server; `CATALOG=<url>` points it at
+  another one. The site lives under the path of `catalog.yaml`'s `site`
+  (`/model-catalog/`), and every page keeps its URL.
+  The shadcn components live in `web/src/components/ui`, restyled to the
+  site's palette in `web/src/index.css`; `npx shadcn view <name> --cwd web`
+  prints another to copy in.
+- **CI.** `lints` runs on pull requests: `validate:schema`, `npm test`, then
+  `validate:helm` against the latest stable charts
   ([Helm validation](schema/crds/README.md)) and `validate:images --match-digest`,
   both on every version file. `pages` builds the site on pull requests and
   deploys it on push to `master`.
 - **`index.json` is generated, not committed.** It is a pure function of
   `models/` and `catalog.yaml`, with no timestamp, so the same tree gives the
   same catalog ref in swiss.
-- **Published versions don't change.** `hack/validate.sh` refuses edits to a
-  committed version file, and the Pages build compares against the live
-  `index.json`:
+- **Published versions don't change.** The Pages build compares every version
+  file against the live `index.json`:
 
   | `REWRITES` | when | does |
   | --- | --- | --- |

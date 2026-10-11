@@ -1,4 +1,4 @@
-// catalog.json, as hack/lib/site.js writes it.
+// catalog.json, as the catalog server (server/data.js) serves it.
 
 export interface Workload {
   name: string;
