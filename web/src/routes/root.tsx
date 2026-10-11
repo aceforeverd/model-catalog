@@ -33,7 +33,7 @@ export function NotFound({ message = "No such page in this catalog." }: { messag
   }, []);
   return (
     <>
-      <SiteHeader eyebrow={<Link to="/">model-catalog</Link>} title="Not found" subject="these models" />
+      <SiteHeader eyebrow={<Link to="/">model-catalog</Link>} title="Not found" />
       <main className="wrap">
         <p className="rounded-2xl border border-dashed border-input px-4 py-12 text-center text-muted-foreground">
           {message} <Link to="/">All models</Link>

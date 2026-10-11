@@ -125,8 +125,12 @@ function catalogSite(): Plugin {
   };
 }
 
+// The repository the site is built from, for the header's GitHub link.
+const repoUrl = (require("../package.json").repository.url as string).replace(/^git\+/, "").replace(/\.git$/, "");
+
 export default defineConfig({
   root: web,
+  define: { __REPO__: JSON.stringify(repoUrl) },
   base,
   // With the repository's node_modules, not a second one in web/.
   cacheDir: path.join(repo, "node_modules/.vite"),

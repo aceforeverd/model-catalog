@@ -244,7 +244,6 @@ export function ModelRoute() {
             {m.displayName} <DeprecatedBadge m={m} className="align-[2px]" />
           </>
         }
-        subject="this model"
       />
       <main className="wrap grid gap-4">
         <section className="grid gap-3">

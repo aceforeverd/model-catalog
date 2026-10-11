@@ -197,7 +197,22 @@ export function ListPage({ catalog, cfg }: { catalog: Catalog; cfg: ListConfig }
 
   return (
     <>
-      <SiteHeader eyebrow="modelsphere / model-catalog" title="Model catalog" subject="these models" />
+      <SiteHeader
+        title={
+          <>
+            Model <em>catalog</em>
+          </>
+        }
+        description={
+          <>
+            The models{" "}
+            <a href="https://github.com/modelsphere/swiss" target="_blank" rel="noopener">
+              swiss
+            </a>{" "}
+            can deploy, and how to serve each one: engine, image, flags, GPUs and tuned variants.
+          </>
+        }
+      />
       <main className="wrap">
         <ListTabs query={qs ? `?${qs}` : ""} models={catalog.count} variants={variants} />
         <Summary items={shown.map((i) => facets[i])} />

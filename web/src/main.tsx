@@ -7,6 +7,8 @@ import { keepCatalog, NotFound, Root, rootLoader, RouteError } from "@/routes/ro
 import { ModelsRoute } from "@/routes/models";
 import { VariantsRoute } from "@/routes/variants";
 import { keepModel, modelLoader, ModelRoute } from "@/routes/model";
+import "@fontsource-variable/fraunces/opsz.css";
+import "@fontsource-variable/fraunces/opsz-italic.css";
 import "./index.css";
 
 const model = { loader: modelLoader, shouldRevalidate: keepModel, Component: ModelRoute };
