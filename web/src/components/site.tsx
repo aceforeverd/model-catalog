@@ -44,20 +44,6 @@ function ThemeButton() {
   );
 }
 
-// Where to go to deploy, under each page's title: modelsphere is the complete
-// deployment solution.
-function DeployRef() {
-  return (
-    <p className="mt-2 text-[0.9rem] text-muted-foreground">
-      Deploy with{" "}
-      <a href="https://github.com/modelsphere/modelsphere" target="_blank" rel="noopener" className="font-[650] whitespace-nowrap">
-        <code>modelsphere/modelsphere</code>
-        <span className="ml-[0.2em] inline-block size-[0.85em] align-[-0.05em] [&_svg]:size-full">{icons.external}</span>
-      </a>
-    </p>
-  );
-}
-
 // The header's top-right buttons share one look.
 const topButton = "gap-[0.4rem] px-3 py-[0.4rem] text-[0.85rem] text-muted-foreground hover:border-input hover:text-foreground [&_svg]:size-4";
 
@@ -105,7 +91,7 @@ function GitHubLink() {
 }
 
 // A page's header: its title centered, with a breadcrumb above when the page
-// is not the catalog itself, then what it is and where to deploy from. The GitHub link and
+// is not the catalog itself, then what it is. The GitHub link and
 // the theme sit top right: beside the title on a wide screen, above it on a
 // narrow one.
 export function SiteHeader({ eyebrow, title, description }: { eyebrow?: ReactNode; title: ReactNode; description?: ReactNode }) {
