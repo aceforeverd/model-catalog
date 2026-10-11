@@ -13,11 +13,11 @@ private profile.
 
 ## Get started
 
-**Browse** <https://modelsphere.github.io/model-catalog/>, rebuilt on every push
-to `master`. Each model lists its variants, the GPUs they need, the tuned
-variant's improvement over its baseline, and the perf report behind it. Filters
-live in the URL, so a view can be shared, e.g.
-[models on B300](https://modelsphere.github.io/model-catalog/?hardware=B300).
+**Browse** <https://modelsphere.github.io/model-catalog/>, rebuilt on every push to `master`.
+Each model lists its variants, the GPUs they need, the tuned variant's improvement over its baseline, and the perf report behind it.
+The Variants tab lists every variant on its own, to compare them across models. Filters live in the URL, so a view can be shared, e.g.
+[models on B300](https://modelsphere.github.io/model-catalog/?hardware=B300) or
+[variants on B300, fewest GPUs first](https://modelsphere.github.io/model-catalog/variants.html?hardware=B300&sort=gpus).
 
 **Use it with swiss.** The site is also the catalog swiss reads (`index.json`):
 
@@ -66,9 +66,9 @@ models/<name>/
 
    ```sh
    npm run validate:schema
-   npm run helm:install && npm run validate:helm -- models/my-model/my-model-1.0.0.yaml
+   npm run tools:install && npm run validate:helm -- models/my-model/my-model-1.0.0.yaml
    npm run validate:images -- models/my-model/my-model-1.0.0.yaml
-   PUBLISHED_INDEX=none npm run build:site   # open site/index.html
+   npm run dev:site                          # preview the site at http://localhost:5173
    ```
 
 **A new variant, or a fix to a published one, is a new version file**
@@ -113,11 +113,13 @@ linking it. The images it records must be the two variants' own (registry, repos
 | --- | --- |
 | `npm run validate:schema` | schemas, tuning references, report HTML (pre-commit and CI) |
 | `npm run test:lib` | tests for `hack/lib` |
-| `npm run helm:install` | pinned Helm and kubeconform, once |
+| `npm run tools:install` | pinned Helm, kubeconform and crane, once |
 | `npm run validate:helm` | render every variant against the charts (`--chart-mode declared` for what a deploy uses) |
-| `npm run validate:images` | every image is publicly pullable without a login, by tag and by any pinned `digest`, and every perf report measured its variants' builds<br> a tag that has moved off its pinned digest is a warning; `--match-digest` makes it an error |
+| `npm run validate:images` | (needs `tools:install`, for crane) every image is publicly pullable without a login, by tag and by any pinned `digest`, and every perf report measured its variants' builds<br> a tag that has moved off its pinned digest is a warning; `--match-digest` makes it an error |
 | `npm run validate` | `validate:schema`, `validate:helm` and `validate:images` |
-| `npm run build:site` | the site and `index.json` into `site/` |
+| `npm run dev:site` | the site at <http://localhost:5173>, live from `models/` |
+| `npm run build:site` | the site and `index.json` into `site/` (`PUBLISHED_INDEX=none` offline); `npm run preview:site` serves it |
+| `npm run test:web` / `typecheck:web` | tests and types for the site in `web/` |
 | `npm test` | `hack/validate.sh`: naming and layout checks (needs `yq`) |
 | `./hack/serve.sh` | rebuild `index.json` and serve the tree |
 
@@ -126,8 +128,12 @@ linking it. The images it records must be the two variants' own (registry, repos
 
 Needs Node.js 24.
 
+- **The site** is a Vite + React app in `web/`. Its pages render in the
+  browser from `catalog.json`, which `hack/lib/site.js` builds from `models/`,
+  so they need JavaScript; `index.json` and the version files beside them are
+  the catalog swiss reads.
 - **CI.** `lints` runs on pull requests: `validate:schema`, `test:lib`,
-  `test:helm`, then `validate:helm` against the latest stable charts
+  `typecheck:web`, `test:web`, `test:helm`, then `validate:helm` against the latest stable charts
   ([Helm validation](schema/crds/README.md)) and `validate:images --match-digest`,
   both on every version file. `pages` builds the site on pull requests and
   deploys it on push to `master`.
